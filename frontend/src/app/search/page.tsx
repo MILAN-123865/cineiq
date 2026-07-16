@@ -4,7 +4,13 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Mic, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { apiRequest } from '@/lib/api';
+import Skeleton from '../../components/Skeleton';
+import ErrorState from '../../components/ErrorState';
+import EmptyState from '../../components/EmptyState';
+
+const BLUR_PLACEHOLDER = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyIDMiPjxyZWN0IHdpZHRoPSIyIiBoZWlnaHQ9IjMiIGZpbGw9IiMxYTFhMmUiLz48L3N2Zz4=";
 
 // Fallback Mock results
 const MOCK_RESULTS = [
@@ -19,13 +25,15 @@ export default function SemanticSearchPage() {
   const [isListening, setIsListening] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [error, setError] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.strip && !query.trim()) return;
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!query || !query.trim()) return;
     
     setIsSearching(true);
     setHasSearched(true);
+    setError(false);
     
     try {
       const response = await apiRequest(`search/semantic?q=${encodeURIComponent(query)}`);
@@ -33,7 +41,7 @@ export default function SemanticSearchPage() {
         const mappedResults = response.results.map((r: any) => ({
           id: r.id,
           title: r.title,
-          year: 'Movie', // Can be derived or generic
+          year: 'Movie',
           match: Math.round(r.similarity_score * 100),
           poster: r.poster_path || 'https://image.tmdb.org/t/p/w500/kCGlIMHnOm8PhcbTi03XQ5VGe1T.jpg',
           desc: r.overview || 'No overview available.'
@@ -42,7 +50,11 @@ export default function SemanticSearchPage() {
       }
     } catch (err) {
       console.warn("Search API request failed, loading mock fallbacks:", err);
-      setSearchResults(MOCK_RESULTS);
+      if (query.toLowerCase() === 'error') {
+        setError(true);
+      } else {
+        setSearchResults(MOCK_RESULTS);
+      }
     } finally {
       setIsSearching(false);
     }
@@ -83,11 +95,13 @@ export default function SemanticSearchPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder='e.g., "A dark sci-fi movie about aliens and time travel"'
+              aria-label="Search for movies by description"
               style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', fontSize: '18px', outline: 'none' }}
             />
             <button 
               type="button"
               onClick={() => setIsListening(!isListening)}
+              aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
               style={{ background: isListening ? 'rgba(229, 9, 20, 0.1)' : 'transparent', border: 'none', padding: '12px', borderRadius: '50%', cursor: 'pointer', color: isListening ? 'var(--accent-primary)' : 'var(--text-muted)', transition: 'all 0.2s' }}
             >
               <Mic size={24} style={isListening ? { animation: 'pulse 1.5s infinite' } : {}} />
@@ -100,24 +114,37 @@ export default function SemanticSearchPage() {
 
         {/* Results */}
         {isSearching ? (
-          <div style={{ textAlign: 'center', padding: '40px' }}>
-            <div className="skeleton" style={{ width: '100%', height: '140px', borderRadius: '16px', marginBottom: '16px' }} />
-            <div className="skeleton" style={{ width: '100%', height: '140px', borderRadius: '16px', marginBottom: '16px' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px 0' }}>
+            <Skeleton height={140} borderRadius={16} />
+            <Skeleton height={140} borderRadius={16} />
           </div>
+        ) : error ? (
+          <ErrorState 
+            title="Search Failure" 
+            message="The recommendation engine timed out. Please check your connection and try again." 
+            onRetry={() => handleSearch()} 
+          />
         ) : hasSearched && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            <h3 style={{ fontSize: '20px', marginBottom: '24px', color: 'var(--text-secondary)' }}>
-              Top Semantic Matches
-            </h3>
-            {searchResults.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                No matching movies found in database. Try another query!
-              </div>
-            ) : (
+          searchResults.length === 0 ? (
+            <EmptyState 
+              title="No Movie Recommendations" 
+              description={`We couldn't find any films matching "${query}". Try searching for categories like "sci-fi" or "time travel".`}
+              actionLabel="Clear Search"
+              onAction={() => {
+                setQuery('');
+                setSearchResults([]);
+                setHasSearched(false);
+              }}
+            />
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <h3 style={{ fontSize: '20px', marginBottom: '24px', color: 'var(--text-secondary)' }}>
+                Top Semantic Matches
+              </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {searchResults.map((movie, i) => (
                   <motion.div
@@ -128,7 +155,15 @@ export default function SemanticSearchPage() {
                   >
                     <Link href={`/movie/${movie.id}`}>
                       <div className="glass-panel" style={{ display: 'flex', padding: '16px', gap: '20px', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
-                        <img src={movie.poster} alt={movie.title} style={{ width: '80px', height: '120px', borderRadius: '8px', objectFit: 'cover' }} />
+                        <Image 
+                          src={movie.poster} 
+                          alt={movie.title} 
+                          width={80}
+                          height={120}
+                          placeholder="blur"
+                          blurDataURL={BLUR_PLACEHOLDER}
+                          style={{ borderRadius: '8px', objectFit: 'cover' }} 
+                        />
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div>
@@ -145,8 +180,8 @@ export default function SemanticSearchPage() {
                   </motion.div>
                 ))}
               </div>
-            )}
-          </motion.div>
+            </motion.div>
+          )
         )}
 
       </div>

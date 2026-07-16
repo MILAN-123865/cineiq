@@ -6,6 +6,7 @@ import re
 from sqlalchemy import or_
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
 
 from app.core.config import settings
 from app.db.session import get_db

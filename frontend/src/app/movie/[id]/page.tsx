@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { Play, Plus, ThumbsUp, Heart, CornerDownRight } from 'lucide-react';
+import { Play, Plus, ThumbsUp, Heart, CornerDownRight, Share2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useParams } from 'next/navigation';
 import { apiRequest } from '@/lib/api';
@@ -38,6 +38,23 @@ export default function MovieDetailPage() {
   const { scrollY } = useScroll();
   const [movie, setMovie] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleShare = async () => {
+    const activeMovie = movie || MOCK_MOVIE;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: activeMovie.title,
+          url: window.location.href,
+        });
+      } catch (error) {
+        console.error('Error sharing:', error);
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      alert('Link copied to clipboard!');
+    }
+  };
   
   // Parallax effects
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
@@ -112,18 +129,26 @@ export default function MovieDetailPage() {
           </div>
           
           <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
-            <button className="btn btn-primary">
+            <button className="btn btn-primary" aria-label="Play movie">
               <Play size={20} fill="currentColor" /> Play
             </button>
-            <button className="btn btn-glass" style={{ padding: '12px', borderRadius: '50%' }}>
+            <button className="btn btn-glass" style={{ padding: '12px', borderRadius: '50%' }} aria-label="Add to watchlist">
               <Plus size={20} />
             </button>
-            <button className="btn btn-glass" style={{ padding: '12px', borderRadius: '50%' }}>
+            <button className="btn btn-glass" style={{ padding: '12px', borderRadius: '50%' }} aria-label="Like this movie">
               <ThumbsUp size={20} />
             </button>
-            <button className="btn btn-glass" style={{ padding: '12px', borderRadius: '50%' }}>
+            <button className="btn btn-glass" style={{ padding: '12px', borderRadius: '50%' }} aria-label="Add to favorites">
               <Heart size={20} />
             </button>
+            <button
+              className="btn btn-glass"
+              style={{ padding: '12px', borderRadius: '50%' }}
+              aria-label="Share movie"
+              onClick={handleShare}
+            >
+              <Share2 size={20} /> 
+            </button> 
           </div>
         </motion.div>
       </div>

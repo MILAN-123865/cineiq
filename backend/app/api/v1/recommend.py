@@ -29,19 +29,19 @@ class RecommendationResponse(BaseModel):
 async def get_personalized_recommendations(
     user_id: str = Depends(get_current_user),
     limit: int = Query(20, le=100),
+    page: int = Query(default=1, ge=1, le=1000, description="Page number"),
     db: AsyncSession = Depends(get_db)
 ):
     """Get personalized recommendations from PostgreSQL."""
-    logger.info("fetch_personalized_recs", user_id=user_id, limit=limit)
+    logger.info("fetch_personalized_recs", user_id=user_id, limit=limit, page=page)
     
-    # Query movies from DB
-    stmt = select(Movie).order_by(Movie.vote_average.desc()).limit(limit)
+    offset = (page - 1) * limit
+    stmt = select(Movie).order_by(Movie.vote_average.desc()).offset(offset).limit(limit)
     result = await db.execute(stmt)
     db_movies = result.scalars().all()
     
     movies = []
     for item in db_movies:
-        # Compute deterministic match score based on popularity/ratings
         match_score = round(0.7 + (item.vote_average / 10.0) * 0.28, 2)
         movies.append(
             MovieItem(
@@ -59,18 +59,19 @@ async def get_personalized_recommendations(
 @router.get("/trending", response_model=RecommendationResponse)
 async def get_trending_movies(
     limit: int = Query(20, le=100),
+    page: int = Query(default=1, ge=1, le=1000, description="Page number"),
     db: AsyncSession = Depends(get_db)
 ):
     """Get globally trending movies from PostgreSQL."""
-    logger.info("fetch_trending_movies", limit=limit)
+    logger.info("fetch_trending_movies", limit=limit, page=page)
     
-    stmt = select(Movie).order_by(Movie.popularity.desc()).limit(limit)
+    offset = (page - 1) * limit
+    stmt = select(Movie).order_by(Movie.popularity.desc()).offset(offset).limit(limit)
     result = await db.execute(stmt)
     db_movies = result.scalars().all()
     
     movies = []
     for item in db_movies:
-        # Match score is deterministic
         match_score = round(0.65 + (item.popularity / 2000.0) * 0.33, 2)
         match_score = min(match_score, 0.99)
         movies.append(
