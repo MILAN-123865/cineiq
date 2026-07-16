@@ -9,13 +9,28 @@ from app.core.config import settings
 
 logger = structlog.get_logger()
 
+from app.db.models import Base
+from app.db.session import engine, AsyncSessionLocal
+from app.services.sync import seed_movies_if_empty
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("cineiq_starting", host=settings.backend_host, port=settings.backend_port)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("database_tables_created")
+        
+        async with AsyncSessionLocal() as db:
+            await seed_movies_if_empty(db)
+    except Exception as e:
+        logger.error("database_startup_failed", error=str(e))
+        
     yield
     # Shutdown
     logger.info("cineiq_stopped")
+    await engine.dispose()
 
 app = FastAPI(
     title="CINEIQ API",

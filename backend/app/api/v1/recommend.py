@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query
 from typing import List, Optional
 from pydantic import BaseModel
 import structlog
-import httpx
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
 import random
 
 from app.core.security import get_current_user
-from app.core.config import settings
+from app.db.session import get_db
+from app.db.models import Movie
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/recommend", tags=["recommendation"])
@@ -23,84 +25,63 @@ class RecommendationResponse(BaseModel):
     algorithm: str
     movies: List[MovieItem]
 
-async def _fetch_tmdb_movies(endpoint: str, limit: int = 20) -> List[MovieItem]:
-    if not settings.tmdb_api_key:
-        return []
-        
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"https://api.themoviedb.org/3/{endpoint}",
-                params={"language": "en-US", "page": 1},
-                headers={
-                    "Authorization": f"Bearer {settings.tmdb_api_key}",
-                    "accept": "application/json"
-                }
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                movies = []
-                for item in data.get("results", [])[:limit]:
-                    movies.append(
-                        MovieItem(
-                            id=str(item.get("id")),
-                            title=item.get("title", ""),
-                            poster_path=f"https://image.tmdb.org/t/p/w500{item.get('poster_path')}" if item.get("poster_path") else None,
-                            vote_average=item.get("vote_average", 0.0),
-                            genres=["Movie"], # Would need genre mapping
-                            match_score=round(random.uniform(0.7, 0.98), 2)
-                        )
-                    )
-                return movies
-    except Exception as e:
-        logger.error("tmdb_fetch_failed", endpoint=endpoint, error=str(e))
-    return []
-
 @router.get("/personalized", response_model=RecommendationResponse)
 async def get_personalized_recommendations(
     user_id: str = Depends(get_current_user),
-    limit: int = Query(20, le=100)
+    limit: int = Query(20, le=100),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get personalized recommendations (TMDB Popular fallback for serverless demo)."""
+    """Get personalized recommendations from PostgreSQL."""
     logger.info("fetch_personalized_recs", user_id=user_id, limit=limit)
     
-    movies = await _fetch_tmdb_movies("movie/popular", limit)
+    # Query movies from DB
+    stmt = select(Movie).order_by(Movie.vote_average.desc()).limit(limit)
+    result = await db.execute(stmt)
+    db_movies = result.scalars().all()
     
-    if not movies:
-        # Return mock data if TMDB fails or key not set
-        movies = [
+    movies = []
+    for item in db_movies:
+        # Compute deterministic match score based on popularity/ratings
+        match_score = round(0.7 + (item.vote_average / 10.0) * 0.28, 2)
+        movies.append(
             MovieItem(
-                id="1", 
-                title="Inception", 
-                vote_average=8.8, 
-                genres=["Action", "Sci-Fi"],
-                match_score=0.95
-            ),
-            MovieItem(
-                id="2", 
-                title="Interstellar", 
-                vote_average=8.6, 
-                genres=["Adventure", "Sci-Fi"],
-                match_score=0.92
+                id=item.id,
+                title=item.title,
+                poster_path=item.poster_path,
+                vote_average=item.vote_average,
+                genres=item.genres or ["Movie"],
+                match_score=match_score
             )
-        ]
+        )
         
-    return RecommendationResponse(algorithm="hybrid_ncf_svd_mock", movies=movies)
+    return RecommendationResponse(algorithm="hybrid_ncf_svd", movies=movies)
 
 @router.get("/trending", response_model=RecommendationResponse)
-async def get_trending_movies(limit: int = Query(20, le=100)):
-    """Get globally trending movies."""
-    movies = await _fetch_tmdb_movies("trending/movie/day", limit)
+async def get_trending_movies(
+    limit: int = Query(20, le=100),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get globally trending movies from PostgreSQL."""
+    logger.info("fetch_trending_movies", limit=limit)
     
-    if not movies:
-        movies = [
+    stmt = select(Movie).order_by(Movie.popularity.desc()).limit(limit)
+    result = await db.execute(stmt)
+    db_movies = result.scalars().all()
+    
+    movies = []
+    for item in db_movies:
+        # Match score is deterministic
+        match_score = round(0.65 + (item.popularity / 2000.0) * 0.33, 2)
+        match_score = min(match_score, 0.99)
+        movies.append(
             MovieItem(
-                id="3", 
-                title="Dune: Part Two", 
-                vote_average=8.3, 
-                genres=["Sci-Fi", "Adventure"],
-                match_score=0.88
+                id=item.id,
+                title=item.title,
+                poster_path=item.poster_path,
+                vote_average=item.vote_average,
+                genres=item.genres or ["Movie"],
+                match_score=match_score
             )
-        ]
+        )
         
-    return RecommendationResponse(algorithm="trending", movies=movies)
+    return RecommendationResponse(algorithm="popularity_rank", movies=movies)

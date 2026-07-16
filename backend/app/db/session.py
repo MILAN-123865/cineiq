@@ -1,8 +1,10 @@
 import structlog
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.core.config import settings
 
 logger = structlog.get_logger()
 
+# ─── Redis Setup (Upstash) ───
 _redis_client = None
 
 def get_redis():
@@ -20,7 +22,23 @@ def get_redis():
                 logger.warning("upstash_redis_init_failed", error=str(e))
     return _redis_client
 
+# ─── SQLAlchemy Async PostgreSQL Setup ───
+engine = create_async_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    echo=False
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
 async def get_db():
-    """Dependency for getting Upstash Redis client (replacing SQLAlchemy session)."""
-    redis = get_redis()
-    yield redis
+    """Dependency for getting async SQLAlchemy database session."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()

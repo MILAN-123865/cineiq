@@ -1,12 +1,14 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { Play, Plus, ThumbsUp, Heart, Share2, CornerDownRight } from 'lucide-react';
+import { Play, Plus, ThumbsUp, Heart, CornerDownRight } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useParams } from 'next/navigation';
+import { apiRequest } from '@/lib/api';
 
-// Mock Data
-const movie = {
+// Mock Data fallback
+const MOCK_MOVIE = {
   id: '1',
   title: 'Dune: Part Two',
   tagline: 'Long live the fighters.',
@@ -19,28 +21,64 @@ const movie = {
   cast: ['Timothée Chalamet', 'Zendaya', 'Rebecca Ferguson', 'Javier Bardem'],
   backdrop: 'https://image.tmdb.org/t/p/original/8rpDcsfLJypbO6vtecsmHLsC88C.jpg',
   dominant_emotion: 'Tense',
-  match: 98
+  match: 98,
+  emotional_arc: [
+    { time: '0m', tension: 30, awe: 40, action: 10 },
+    { time: '30m', tension: 45, awe: 60, action: 20 },
+    { time: '60m', tension: 80, awe: 50, action: 75 },
+    { time: '90m', tension: 60, awe: 85, action: 40 },
+    { time: '120m', tension: 95, awe: 70, action: 90 },
+    { time: '150m', tension: 100, awe: 95, action: 100 },
+    { time: '166m', tension: 40, awe: 100, action: 20 },
+  ]
 };
-
-// Emotional arc data (mock)
-const emotionalArc = [
-  { time: '0m', tension: 30, awe: 40, action: 10 },
-  { time: '30m', tension: 45, awe: 60, action: 20 },
-  { time: '60m', tension: 80, awe: 50, action: 75 },
-  { time: '90m', tension: 60, awe: 85, action: 40 },
-  { time: '120m', tension: 95, awe: 70, action: 90 },
-  { time: '150m', tension: 100, awe: 95, action: 100 },
-  { time: '166m', tension: 40, awe: 100, action: 20 },
-];
 
 export default function MovieDetailPage() {
   const params = useParams();
   const { scrollY } = useScroll();
+  const [movie, setMovie] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   
   // Parallax effects
   const y1 = useTransform(scrollY, [0, 500], [0, 200]);
   const opacity = useTransform(scrollY, [0, 300], [1, 0]);
   const scale = useTransform(scrollY, [0, 300], [1, 1.05]);
+
+  useEffect(() => {
+    async function loadMovie() {
+      if (!params || !params.id) return;
+      try {
+        const response = await apiRequest(`movie/${params.id}`);
+        if (response) {
+          // If poster/backdrop is relative, map to full TMDB path
+          let backdrop = response.backdrop;
+          if (backdrop && !backdrop.startsWith('http')) {
+            backdrop = `https://image.tmdb.org/t/p/original${backdrop}`;
+          }
+          setMovie({
+            ...response,
+            backdrop: backdrop || MOCK_MOVIE.backdrop
+          });
+        }
+      } catch (err) {
+        console.warn(`Failed to fetch movie details for ID ${params.id}, falling back to mock data:`, err);
+        setMovie(MOCK_MOVIE);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadMovie();
+  }, [params]);
+
+  if (loading) {
+    return (
+      <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
+        <div className="skeleton" style={{ width: '80%', height: '70vh', borderRadius: '24px' }} />
+      </main>
+    );
+  }
+
+  const activeMovie = movie || MOCK_MOVIE;
 
   return (
     <main style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
@@ -49,7 +87,7 @@ export default function MovieDetailPage() {
       <div style={{ height: '70vh', position: 'relative', overflow: 'hidden' }}>
         <motion.div style={{
           position: 'absolute', inset: 0,
-          backgroundImage: `url(${movie.backdrop})`,
+          backgroundImage: `url(${activeMovie.backdrop})`,
           backgroundSize: 'cover',
           backgroundPosition: 'top center',
           y: y1,
@@ -65,12 +103,12 @@ export default function MovieDetailPage() {
           position: 'absolute', bottom: '40px', left: '5%', right: '5%',
           padding: '40px', display: 'flex', flexDirection: 'column', gap: '16px'
         }}>
-          <h1 style={{ fontSize: '56px', textShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>{movie.title}</h1>
+          <h1 style={{ fontSize: '56px', textShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>{activeMovie.title}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '15px', color: '#E4E4E7', fontWeight: 500 }}>
-            <span style={{ color: '#22C55E', fontWeight: 700 }}>{movie.match}% Match</span>
-            <span>{movie.year}</span>
-            <span style={{ padding: '2px 8px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px' }}>{movie.rating}</span>
-            <span>{movie.runtime}</span>
+            <span style={{ color: '#22C55E', fontWeight: 700 }}>{activeMovie.match}% Match</span>
+            <span>{activeMovie.year}</span>
+            <span style={{ padding: '2px 8px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px' }}>{activeMovie.rating}</span>
+            <span>{activeMovie.runtime}</span>
           </div>
           
           <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
@@ -95,17 +133,19 @@ export default function MovieDetailPage() {
         
         {/* Left Col: Overview & Emotional Arc */}
         <div>
-          <h3 style={{ fontSize: '24px', marginBottom: '16px', fontStyle: 'italic', color: 'var(--text-secondary)' }}>
-            &ldquo;{movie.tagline}&rdquo;
-          </h3>
+          {activeMovie.tagline && (
+            <h3 style={{ fontSize: '24px', marginBottom: '16px', fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+              &ldquo;{activeMovie.tagline}&rdquo;
+            </h3>
+          )}
           <p style={{ fontSize: '18px', color: 'var(--text-primary)', lineHeight: 1.7, marginBottom: '40px' }}>
-            {movie.overview}
+            {activeMovie.overview}
           </p>
 
           <h3 style={{ fontSize: '20px', marginBottom: '24px' }}>Emotional Journey</h3>
           <div className="glass-panel" style={{ padding: '24px', height: '300px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={emotionalArc} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={activeMovie.emotional_arc} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorTension" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#E50914" stopOpacity={0.3}/>
@@ -131,31 +171,37 @@ export default function MovieDetailPage() {
 
         {/* Right Col: Metadata */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '8px' }}>Cast</div>
-            <div style={{ color: 'var(--text-primary)', fontSize: '15px' }}>{movie.cast.join(', ')}</div>
-          </div>
-          <div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '8px' }}>Director</div>
-            <div style={{ color: 'var(--text-primary)', fontSize: '15px' }}>{movie.director}</div>
-          </div>
-          <div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '8px' }}>Genres</div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {movie.genres.map(g => (
-                <span key={g} style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 12px', borderRadius: '999px', fontSize: '13px' }}>
-                  {g}
-                </span>
-              ))}
+          {activeMovie.cast && activeMovie.cast.length > 0 && (
+            <div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '8px' }}>Cast</div>
+              <div style={{ color: 'var(--text-primary)', fontSize: '15px' }}>{activeMovie.cast.join(', ')}</div>
             </div>
-          </div>
+          )}
+          {activeMovie.director && (
+            <div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '8px' }}>Director</div>
+              <div style={{ color: 'var(--text-primary)', fontSize: '15px' }}>{activeMovie.director}</div>
+            </div>
+          )}
+          {activeMovie.genres && activeMovie.genres.length > 0 && (
+            <div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '8px' }}>Genres</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {activeMovie.genres.map((g: string) => (
+                  <span key={g} style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 12px', borderRadius: '999px', fontSize: '13px' }}>
+                    {g}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="glass-panel" style={{ padding: '20px', marginTop: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <CornerDownRight size={20} color="var(--accent-secondary)" />
               <span style={{ fontWeight: 600 }}>Dominant Emotion</span>
             </div>
             <div style={{ fontSize: '24px', fontFamily: 'var(--font-display)', color: 'var(--accent-primary)', fontWeight: 700 }}>
-              {movie.dominant_emotion}
+              {activeMovie.dominant_emotion}
             </div>
           </div>
         </div>

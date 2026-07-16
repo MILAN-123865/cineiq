@@ -4,24 +4,48 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Mic, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { apiRequest } from '@/lib/api';
+
+// Fallback Mock results
+const MOCK_RESULTS = [
+  { id: '1', title: 'Arrival', year: '2016', match: 94, poster: 'https://image.tmdb.org/t/p/w500/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg', desc: 'A linguist works with the military to communicate with alien lifeforms.' },
+  { id: '2', title: 'Interstellar', year: '2014', match: 89, poster: 'https://image.tmdb.org/t/p/w500/gEU2QlsE1ZEbKU01E8XgK31rGfQ.jpg', desc: 'A team of explorers travel through a wormhole in space in an attempt to ensure humanity\'s survival.' },
+  { id: '3', title: 'Contact', year: '1997', match: 82, poster: 'https://image.tmdb.org/t/p/w500/bT2B1xQx7M4zZ2E2A6eO7FhIbbB.jpg', desc: 'Dr. Ellie Arroway finds conclusive radio proof of extraterrestrial intelligence.' }
+];
 
 export default function SemanticSearchPage() {
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  // Mock results
-  const results = [
-    { id: '1', title: 'Arrival', year: '2016', match: 94, poster: 'https://image.tmdb.org/t/p/w500/x2FJsf1ElAgr63Y3PNPtJrcmpoe.jpg', desc: 'A linguist works with the military to communicate with alien lifeforms.' },
-    { id: '2', title: 'Interstellar', year: '2014', match: 89, poster: 'https://image.tmdb.org/t/p/w500/gEU2QlsE1ZEbKU01E8XgK31rGfQ.jpg', desc: 'A team of explorers travel through a wormhole in space in an attempt to ensure humanity\'s survival.' },
-    { id: '3', title: 'Contact', year: '1997', match: 82, poster: 'https://image.tmdb.org/t/p/w500/bT2B1xQx7M4zZ2E2A6eO7FhIbbB.jpg', desc: 'Dr. Ellie Arroway finds conclusive radio proof of extraterrestrial intelligence.' }
-  ];
-
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query) return;
+    if (!query.strip && !query.trim()) return;
+    
     setIsSearching(true);
-    setTimeout(() => setIsSearching(false), 1200); // Simulate network delay
+    setHasSearched(true);
+    
+    try {
+      const response = await apiRequest(`search/semantic?q=${encodeURIComponent(query)}`);
+      if (response && response.results) {
+        const mappedResults = response.results.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          year: 'Movie', // Can be derived or generic
+          match: Math.round(r.similarity_score * 100),
+          poster: r.poster_path || 'https://image.tmdb.org/t/p/w500/kCGlIMHnOm8PhcbTi03XQ5VGe1T.jpg',
+          desc: r.overview || 'No overview available.'
+        }));
+        setSearchResults(mappedResults);
+      }
+    } catch (err) {
+      console.warn("Search API request failed, loading mock fallbacks:", err);
+      setSearchResults(MOCK_RESULTS);
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   return (
@@ -80,7 +104,7 @@ export default function SemanticSearchPage() {
             <div className="skeleton" style={{ width: '100%', height: '140px', borderRadius: '16px', marginBottom: '16px' }} />
             <div className="skeleton" style={{ width: '100%', height: '140px', borderRadius: '16px', marginBottom: '16px' }} />
           </div>
-        ) : query && (
+        ) : hasSearched && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -89,33 +113,39 @@ export default function SemanticSearchPage() {
             <h3 style={{ fontSize: '20px', marginBottom: '24px', color: 'var(--text-secondary)' }}>
               Top Semantic Matches
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {results.map((movie, i) => (
-                <motion.div
-                  key={movie.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                >
-                  <Link href={`/movie/${movie.id}`}>
-                    <div className="glass-panel" style={{ display: 'flex', padding: '16px', gap: '20px', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
-                      <img src={movie.poster} alt={movie.title} style={{ width: '80px', height: '120px', borderRadius: '8px', objectFit: 'cover' }} />
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <h4 style={{ fontSize: '20px', marginBottom: '4px' }}>{movie.title} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({movie.year})</span></h4>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.5, maxWidth: '90%' }}>{movie.desc}</p>
-                          </div>
-                          <div style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#22C55E', padding: '4px 12px', borderRadius: '999px', fontSize: '13px', fontWeight: 600 }}>
-                            {movie.match}% Match
+            {searchResults.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                No matching movies found in database. Try another query!
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {searchResults.map((movie, i) => (
+                  <motion.div
+                    key={movie.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                  >
+                    <Link href={`/movie/${movie.id}`}>
+                      <div className="glass-panel" style={{ display: 'flex', padding: '16px', gap: '20px', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}>
+                        <img src={movie.poster} alt={movie.title} style={{ width: '80px', height: '120px', borderRadius: '8px', objectFit: 'cover' }} />
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                              <h4 style={{ fontSize: '20px', marginBottom: '4px' }}>{movie.title}</h4>
+                              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: 1.5, maxWidth: '90%' }}>{movie.desc}</p>
+                            </div>
+                            <div style={{ background: 'rgba(34, 197, 94, 0.1)', color: '#22C55E', padding: '4px 12px', borderRadius: '999px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              {movie.match}% Match
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
 

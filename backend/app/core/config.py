@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     upstash_redis_url: str = ""
     upstash_redis_token: str = ""
 
+    # Database
+    database_url: str = "postgresql+asyncpg://cineiq:cineiq_secret@postgres_cineiq:5432/cineiq"
+
     # Auth
     clerk_secret_key: str = ""
     next_public_clerk_publishable_key: str = ""
