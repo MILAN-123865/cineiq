@@ -78,6 +78,19 @@ global.fetch = jest.fn().mockImplementation((url) => {
       })
     });
   }
+  if (url.includes('/profile/stats')) {
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({
+        movies_watched: 12,
+        reviews: 4,
+        genre_preferences: [
+          { genre: 'Science Fiction', score: 100 },
+          { genre: 'Drama', score: 70 },
+        ],
+      }),
+    });
+  }
   if (url.includes('/recommend/personalized')) {
     return Promise.resolve({
       ok: true,
@@ -168,10 +181,17 @@ jest.mock('@clerk/nextjs', () => {
       isLoaded: true,
       isSignedIn: true,
       user: {
-        fullName: 'John Doe',
-        primaryEmailAddress: null,
+        fullName: 'Jane Cinema',
+        username: 'janecinema',
+        primaryEmailAddress: { emailAddress: 'jane@example.com' },
         imageUrl: null,
       },
+    }),
+    useAuth: () => ({
+      getToken: jest.fn().mockResolvedValue('test-token'),
+    }),
+    useClerk: () => ({
+      openUserProfile: jest.fn(),
     }),
   };
 });
