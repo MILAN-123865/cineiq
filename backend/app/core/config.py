@@ -6,10 +6,8 @@ import json
 class Settings(BaseSettings):
     # App
     environment: str = "development"
-    backend_cors_origins: str | List[str] = [
-        "http://localhost:3000",
-        "https://*.vercel.app",
-    ]
+    frontend_url: str = "http://localhost:3000"
+    backend_cors_origins: str | List[str] = []
     backend_host: str = "0.0.0.0"
     backend_port: int = 8001
     max_room_participants: int = 10
@@ -49,16 +47,25 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> List[str]:
+        origins = [self.frontend_url]
+        if self.environment == "development" and "http://localhost:3000" not in origins:
+            origins.append("http://localhost:3000")
+            
         if isinstance(self.backend_cors_origins, str):
             try:
-                return json.loads(self.backend_cors_origins)
+                parsed = json.loads(self.backend_cors_origins)
+                if isinstance(parsed, list):
+                    origins.extend(parsed)
             except json.JSONDecodeError:
-                return [
+                origins.extend([
                     origin.strip()
                     for origin in self.backend_cors_origins.split(",")
                     if origin.strip()
-                ]
-        return self.backend_cors_origins
+                ])
+        elif isinstance(self.backend_cors_origins, list):
+            origins.extend(self.backend_cors_origins)
+            
+        return list(set(origins))
 
 
 settings = Settings()
