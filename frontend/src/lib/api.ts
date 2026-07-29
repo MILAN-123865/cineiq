@@ -15,6 +15,17 @@ export interface RecommendationResponse {
   movies: MovieItem[];
 }
 
+export interface GenrePreference {
+  genre: string;
+  score: number;
+}
+
+export interface ProfileStats {
+  movies_watched: number;
+  reviews: number;
+  genre_preferences: GenrePreference[];
+}
+
 export async function fetchTrendingMovies(limit: number = 20): Promise<RecommendationResponse> {
   const response = await fetch(`${API_BASE_URL}/recommend/trending?limit=${limit}`, {
     method: 'GET',
@@ -35,6 +46,22 @@ export async function fetchPersonalizedMovies(limit: number = 20): Promise<Recom
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchProfileStats(token: string): Promise<ProfileStats> {
+  const response = await fetch(`${API_BASE_URL}/profile/stats`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     },
   });
 
