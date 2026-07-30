@@ -3,7 +3,8 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { Play, Plus, ThumbsUp, Heart, Share2, CornerDownRight } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { useParams } from 'next/navigation' ;
+import { useParams } from 'next/navigation';
+import ReviewsSection from './ReviewsSection';
 
 // Mock Data
 const movie = {
@@ -186,6 +187,7 @@ export default function MovieDetailPage() {
         </div>
         
       </div>
+      <ReviewsSection movieId={String(params.id ?? movie.id)} />
     </main>
   );
 }
