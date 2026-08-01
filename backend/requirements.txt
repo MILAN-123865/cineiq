@@ -8,14 +8,17 @@ upstash-redis>=1.1.0
 
 # ─── Database ───
 sqlalchemy[asyncio]>=2.0.27
-asyncpg>=0.29.0
+aiosqlite>=0.20.0
 alembic>=1.13.1
+# For production PostgreSQL — install manually:
+# asyncpg>=0.29.0
 
 # ─── AI / ML / LLM ───
 google-generativeai>=0.8.3
-scikit-surprise>=1.1.4
-qdrant-client>=1.7.0
-sentence-transformers>=2.2.2
+# Optional heavy ML dependencies — install manually if needed:
+# scikit-surprise>=1.1.4
+# qdrant-client>=1.7.0
+# sentence-transformers>=2.2.2
 
 # ─── Utils ───
 httpx>=0.26.0
@@ -25,4 +28,3 @@ structlog>=24.1.0
 PyJWT>=2.8.0
 cryptography>=42.0.2
 slowapi>=0.1.9
-ruff==0.12.5

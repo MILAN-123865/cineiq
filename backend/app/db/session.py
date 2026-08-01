@@ -25,11 +25,19 @@ def get_redis():
     return _redis_client
 
 
-# ─── SQLAlchemy Async PostgreSQL Setup ───
+# ─── SQLAlchemy Async Database Setup ───
+_db_url = settings.resolved_database_url
+
+# SQLite requires connect_args to allow multi-threaded access
+_connect_args = {}
+if "sqlite" in _db_url:
+    _connect_args["check_same_thread"] = False
+
 engine = create_async_engine(
-    settings.database_url,
+    _db_url,
     pool_pre_ping=True,
-    echo=False
+    echo=False,
+    connect_args=_connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(

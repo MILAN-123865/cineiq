@@ -7,7 +7,7 @@ import re
 import httpx
 import structlog
 from datetime import datetime
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import select
 from app.db.session import AsyncSessionLocal
 from app.db.models import Movie
 from app.services.sync import MOCK_DOMINANT_EMOTIONS, MOCK_EMOTIONAL_ARCS
@@ -91,7 +91,7 @@ async def import_10k_movies():
                     
                     poster = random.choice(POSTER_PLACEHOLDERS)
                     
-                    movie_dict = {
+                    movies_list.append({
                         "id": movie_id,
                         "title": title,
                         "overview": overview,
@@ -103,21 +103,23 @@ async def import_10k_movies():
                         "vote_average": vote_average,
                         "vote_count": vote_count,
                         "dominant_emotion": random.choice(MOCK_DOMINANT_EMOTIONS),
-                        "emotional_arc": random.choice(MOCK_EMOTIONAL_ARCS)
-                    }
-                    movies_list.append(movie_dict)
+                        "emotional_arc": random.choice(MOCK_EMOTIONAL_ARCS),
+                    })
                     
                 logger.info("csv_parsing_complete", count=len(movies_list))
                 
-                # 2. Write to PostgreSQL in batches of 1000
+                # 2. Write to database in batches using merge (portable: works on SQLite + PG)
                 async with AsyncSessionLocal() as db:
-                    batch_size = 1000
                     total_inserted = 0
+                    batch_size = 500
                     for i in range(0, len(movies_list), batch_size):
                         batch = movies_list[i:i+batch_size]
-                        stmt = insert(Movie).values(batch)
-                        stmt = stmt.on_conflict_do_nothing(index_elements=['id'])
-                        await db.execute(stmt)
+                        for movie_data in batch:
+                            existing = await db.execute(
+                                select(Movie).where(Movie.id == movie_data["id"])
+                            )
+                            if existing.scalars().first() is None:
+                                db.add(Movie(**movie_data))
                         await db.commit()
                         total_inserted += len(batch)
                         logger.info("batch_inserted", progress=f"{total_inserted}/{len(movies_list)}")
