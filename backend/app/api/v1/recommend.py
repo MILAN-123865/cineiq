@@ -6,7 +6,7 @@ import json
 import os
 import pickle
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -408,25 +408,10 @@ async def get_personalized_recommendations(
         except Exception as error:
             logger.error("svd_prediction_failed", error=str(error))
 
-    # 3. Fallback to TMDB / mock
+    # 3. Fall back to the configured TMDB source.
     movies = await _fetch_tmdb_movies("movie/popular", limit, page)
     if not movies:
-        movies = [
-            MovieItem(
-                id="1",
-                title="Inception",
-                vote_average=8.8,
-                genres=["Action", "Sci-Fi"],
-                match_score=0.95,
-            ),
-            MovieItem(
-                id="2",
-                title="Interstellar",
-                vote_average=8.6,
-                genres=["Adventure", "Sci-Fi"],
-                match_score=0.92,
-            ),
-        ]
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Recommendations are unavailable: configure TMDB_API_KEY and populate the movie catalogue.")
 
     return RecommendationResponse(algorithm="cold_start_fallback", movies=movies)
 
@@ -468,17 +453,9 @@ async def get_trending_movies(
     except Exception as e:
         logger.warning("postgres_trending_fallback", error=str(e))
 
-    # 2. Try TMDB API
+    # 2. Try the configured TMDB API.
     movies = await _fetch_tmdb_movies("trending/movie/day", limit, page)
     if not movies:
-        movies = [
-            MovieItem(
-                id="3",
-                title="Dune: Part Two",
-                vote_average=8.3,
-                genres=["Sci-Fi", "Adventure"],
-                match_score=0.88,
-            ),
-        ]
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Trending movies are unavailable: configure TMDB_API_KEY and populate the movie catalogue.")
 
     return RecommendationResponse(algorithm="trending_fallback", movies=movies)

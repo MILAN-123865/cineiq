@@ -47,11 +47,7 @@ async def lifespan(app: FastAPI):
         logger.error("database_startup_failed", error=str(e))
         
     if not settings.clerk_secret_key or "REPLACE" in settings.clerk_secret_key:
-        if settings.environment == "development":
-            logger.warning(
-                "auth_bypass_active",
-                message="Clerk secret key is missing or default. Authentication bypass is active in development mode."
-            )
+        logger.warning("clerk_not_configured", message="Protected endpoints will return 503 until Clerk is configured.")
 
     # --- Configure Google Gemini ONCE at startup (not per request) ---
     if settings.gemini_api_key:
@@ -156,13 +152,13 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         "http_exception",
         path=request.url.path,
         status_code=exc.status_code,
-        detail=exc.detail,
+        detail=getattr(exc, "detail", str(exc)),
         request_id=request_id,
     )
     return JSONResponse(
         status_code=exc.status_code,
         content={
-            "detail": exc.detail,
+            "detail": getattr(exc, "detail", str(exc)),
             "error_code": "HTTP_ERROR",
             "request_id": request_id,
         },

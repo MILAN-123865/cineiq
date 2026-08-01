@@ -5,7 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 import json
 import hashlib
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import or_
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,6 +103,9 @@ async def semantic_search(
     Perform semantic search using Qdrant vector search, Gemini keyword extraction, PostgreSQL DB search, or TMDB search fallback.
     """
     logger.info("semantic_search", query=q, limit=limit)
+
+    if not settings.gemini_api_key and not settings.qdrant_url:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Semantic search is unavailable: configure GEMINI_API_KEY or QDRANT_URL.")
 
     # 1. Try Qdrant vector search if enabled
     if settings.qdrant_url:
@@ -232,15 +235,5 @@ async def semantic_search(
                             logger.error("redis_cache_set_error", error=str(e))
         except Exception as e:
             logger.error("tmdb_search_failed", error=str(e))
-
-    if not results:
-        results = [
-            SearchResult(
-                id="12",
-                title="Arrival",
-                overview="A linguist works with the military to communicate with alien lifeforms.",
-                similarity_score=0.89,
-            )
-        ]
 
     return SearchResponse(query=q, results=results)

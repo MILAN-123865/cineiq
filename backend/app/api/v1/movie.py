@@ -25,25 +25,19 @@ class MovieDetailResponse(BaseModel):
     tagline: Optional[str] = None
     overview: str
     year: str
-    runtime: str
-    rating: str
+    runtime: Optional[str] = None
+    rating: Optional[str] = None
     genres: List[str]
-    director: str
+    director: Optional[str] = None
     cast: List[str]
     backdrop: Optional[str] = None
-    dominant_emotion: str
+    dominant_emotion: Optional[str] = None
     match: float
     emotional_arc: List[EmotionalArcPoint]
 
 async def _fetch_tmdb_extra_details(movie_id: str):
     """Fetch additional details (cast, director, runtime, tagline) from TMDB."""
-    details = {
-        "tagline": "Discover the story.",
-        "runtime": "2h 15m",
-        "rating": "PG-13",
-        "director": "Unknown Director",
-        "cast": ["Actor A", "Actor B", "Actor C"]
-    }
+    details = {"tagline": None, "runtime": None, "rating": None, "director": None, "cast": []}
     
     if not settings.tmdb_api_key or "placeholder" in settings.tmdb_api_key.lower():
         return details
@@ -133,21 +127,17 @@ async def get_movie_details(
                         import random
                         movie = Movie(
                             id=movie_id,
-                            title=data.get("title", "Unknown Title"),
+                            title=data.get("title") or "Untitled",
                             overview=data.get("overview", ""),
                             release_date=release_date,
                             poster_path=f"https://image.tmdb.org/t/p/w500{data.get('poster_path')}" if data.get("poster_path") else None,
                             backdrop_path=f"https://image.tmdb.org/t/p/original{data.get('backdrop_path')}" if data.get("backdrop_path") else None,
-                            genres=[g.get("name") for g in data.get("genres", [])] if data.get("genres") else ["Movie"],
+                            genres=[g.get("name") for g in data.get("genres", []) if g.get("name")],
                             popularity=float(data.get("popularity", 0.0)),
                             vote_average=float(data.get("vote_average", 0.0)),
                             vote_count=int(data.get("vote_count", 0)),
-                            dominant_emotion="Thrilling",
-                            emotional_arc=[
-                                {"time": "0m", "tension": 20, "awe": 30, "action": 10},
-                                {"time": "60m", "tension": 60, "awe": 50, "action": 50},
-                                {"time": "120m", "tension": 90, "awe": 80, "action": 90}
-                            ]
+                            dominant_emotion=None,
+                            emotional_arc=None,
                         )
                         db.add(movie)
                         await db.commit()
@@ -162,7 +152,7 @@ async def get_movie_details(
     extra = await _fetch_tmdb_extra_details(movie_id)
     
     # 4. format release year
-    year = str(movie.release_date.year) if movie.release_date else "2024"
+    year = str(movie.release_date.year) if movie.release_date else "Unknown"
     
     # 5. Calculate match score
     match_score = round(0.70 + (movie.vote_average / 10.0) * 0.28, 2) * 100
@@ -188,11 +178,11 @@ async def get_movie_details(
         year=year,
         runtime=extra["runtime"],
         rating=extra["rating"],
-        genres=movie.genres or ["Movie"],
+        genres=movie.genres or [],
         director=extra["director"],
         cast=extra["cast"],
         backdrop=movie.backdrop_path,
-        dominant_emotion=movie.dominant_emotion or "Inspiring",
+        dominant_emotion=movie.dominant_emotion,
         match=match_score,
         emotional_arc=emotional_arc_list
     )

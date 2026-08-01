@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
 export interface MovieItem {
   id: string;
@@ -12,6 +12,13 @@ export interface MovieItem {
 export interface RecommendationResponse {
   algorithm: string;
   movies: MovieItem[];
+}
+
+export interface MovieDetail {
+  id: string; title: string; tagline?: string | null; overview: string; year: string;
+  runtime?: string | null; rating?: string | null; genres: string[]; director?: string | null;
+  cast: string[]; backdrop?: string | null; dominant_emotion?: string | null; match: number;
+  emotional_arc: { time: string; tension: number; awe: number; action: number }[];
 }
 
 export interface GenrePreference {
@@ -83,6 +90,10 @@ export async function apiRequest(endpoint: string, options: RequestInit = {}) {
 
 export async function fetchTrendingMovies(limit: number = 20): Promise<RecommendationResponse> {
   return apiRequest(`/recommend/trending?limit=${limit}`);
+}
+
+export async function fetchMovie(movieId: string): Promise<MovieDetail> {
+  return apiRequest(`/movie/${encodeURIComponent(movieId)}`);
 }
 
 export async function fetchPersonalizedMovies(limit: number = 20): Promise<RecommendationResponse> {

@@ -2,7 +2,6 @@ import asyncio
 import zipfile
 import io
 import csv
-import random
 import re
 import httpx
 import structlog
@@ -10,19 +9,8 @@ from datetime import datetime
 from sqlalchemy import select
 from app.db.session import AsyncSessionLocal
 from app.db.models import Movie
-from app.services.sync import MOCK_DOMINANT_EMOTIONS, MOCK_EMOTIONAL_ARCS
 
 logger = structlog.get_logger()
-
-# High quality royalty-free placeholder movie posters
-POSTER_PLACEHOLDERS = [
-    "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500&auto=format&fit=crop", # Film reel
-    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop", # Cinema Theatre
-    "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=500&auto=format&fit=crop", # Red cinema seats
-    "https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=500&auto=format&fit=crop", # Film project screen
-    "https://images.unsplash.com/photo-1542204172-e7052809f852?w=500&auto=format&fit=crop", # Vintage camera
-    "https://images.unsplash.com/photo-1509281373149-e957c6296406?w=500&auto=format&fit=crop"  # Popcorn bucket
-]
 
 async def import_10k_movies():
     """
@@ -69,7 +57,7 @@ async def import_10k_movies():
                     
                     # Parse release year from title (e.g. "Toy Story (1995)" -> 1995)
                     title = title_raw.strip()
-                    year = 2024
+                    year = None
                     match = re.search(r"\((\d{4})\)$", title)
                     if match:
                         year = int(match.group(1))
@@ -77,33 +65,22 @@ async def import_10k_movies():
                         
                     # Split and map genres
                     genres = [g.strip() for g in genres_raw.split("|") if g.strip()]
-                    if not genres or genres == ["(no genres listed)"]:
-                        genres = ["Movie"]
+                    if genres == ["(no genres listed)"]:
+                        genres = []
                         
-                    release_date = datetime(year, 1, 1)
-                    
-                    # Generate deterministic/random metrics
-                    vote_average = round(random.uniform(5.5, 9.2), 1)
-                    popularity = round(random.uniform(10.0, 950.0), 1)
-                    vote_count = random.randint(100, 25000)
-                    
-                    overview = f"A classic movie titled '{title}' released in {year} featuring genres like {', '.join(genres)}. Explore reviews, emotional graphs, and ratings."
-                    
-                    poster = random.choice(POSTER_PLACEHOLDERS)
+                    release_date = datetime(year, 1, 1) if year else None
                     
                     movies_list.append({
                         "id": movie_id,
                         "title": title,
-                        "overview": overview,
+                        "overview": "",
                         "release_date": release_date,
-                        "poster_path": poster,
-                        "backdrop_path": poster,
+                        "poster_path": None,
+                        "backdrop_path": None,
                         "genres": genres,
-                        "popularity": popularity,
-                        "vote_average": vote_average,
-                        "vote_count": vote_count,
-                        "dominant_emotion": random.choice(MOCK_DOMINANT_EMOTIONS),
-                        "emotional_arc": random.choice(MOCK_EMOTIONAL_ARCS),
+                        "popularity": 0,
+                        "vote_average": 0,
+                        "vote_count": 0,
                     })
                     
                 logger.info("csv_parsing_complete", count=len(movies_list))

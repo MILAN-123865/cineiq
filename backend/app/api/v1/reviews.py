@@ -56,7 +56,7 @@ async def _ensure_user_and_movie(
         db.add(User(id=user_id))
 
     if await db.get(Movie, movie_id) is None:
-        db.add(Movie(id=movie_id, title=f"TMDB Movie {movie_id}", genres=[]))
+        raise HTTPException(status_code=404, detail="Movie is not in the catalogue")
 
     await db.flush()
 
