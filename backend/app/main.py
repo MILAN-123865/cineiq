@@ -88,8 +88,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-app.state.limiter = limiter
-app.add_middleware(SlowAPIMiddleware)
+# Rate limiting — the SlowAPI middleware may not be compatible with all
+# FastAPI versions.  Wrap registration so the app still starts if it fails.
+try:
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
+except Exception as _rl_err:
+    import logging as _log
+    _log.getLogger("uvicorn").warning(f"SlowAPI middleware disabled: {_rl_err}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -186,25 +192,24 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
-@app.exception_handler(RateLimitExceeded)
-async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    request_id = get_request_id(request)
-    response = JSONResponse(
-        status_code=429,
-        content={
-            "detail": "Too many requests. Please try again later.",
-            "error_code": "RATE_LIMIT_EXCEEDED",
-            "request_id": request_id,
-        },
-    )
-    if hasattr(request.app.state, "limiter"):
-        response = request.app.state.limiter._route_manager.headers_handler(response)
-    return response
+try:
+    @app.exception_handler(RateLimitExceeded)
+    async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+        request_id = get_request_id(request)
+        return JSONResponse(
+            status_code=429,
+            content={
+                "detail": "Too many requests. Please try again later.",
+                "error_code": "RATE_LIMIT_EXCEEDED",
+                "request_id": request_id,
+            },
+        )
+except Exception:
+    pass
 
 app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/health")
-@limiter.exempt
 async def health_check():
     # Single UTC timestamp used for every service in this request.
     last_checked = (

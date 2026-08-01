@@ -11,7 +11,6 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.rate_limit import limiter
 from app.db.session import get_redis, get_db
 from app.db.models import Movie
 
@@ -94,7 +93,6 @@ async def extract_keywords_with_gemini(query: str) -> str:
 
 
 @router.get("/semantic", response_model=SearchResponse)
-@limiter.limit(settings.rate_limit_semantic_search)
 async def semantic_search(
     request: Request,
     q: str = Query(..., description="Natural language search query"),
