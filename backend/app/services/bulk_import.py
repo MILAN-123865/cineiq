@@ -1,0 +1,133 @@
+import asyncio
+import zipfile
+import io
+import csv
+import random
+import re
+import httpx
+import structlog
+from datetime import datetime
+from sqlalchemy.dialects.postgresql import insert
+from app.db.session import AsyncSessionLocal
+from app.db.models import Movie
+from app.services.sync import MOCK_DOMINANT_EMOTIONS, MOCK_EMOTIONAL_ARCS
+
+logger = structlog.get_logger()
+
+# High quality royalty-free placeholder movie posters
+POSTER_PLACEHOLDERS = [
+    "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=500&auto=format&fit=crop", # Film reel
+    "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop", # Cinema Theatre
+    "https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=500&auto=format&fit=crop", # Red cinema seats
+    "https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=500&auto=format&fit=crop", # Film project screen
+    "https://images.unsplash.com/photo-1542204172-e7052809f852?w=500&auto=format&fit=crop", # Vintage camera
+    "https://images.unsplash.com/photo-1509281373149-e957c6296406?w=500&auto=format&fit=crop"  # Popcorn bucket
+]
+
+async def import_10k_movies():
+    """
+    Downloads and parses the MovieLens 100k dataset (9,742 movies).
+    This dataset requires no developer keys, registration, or accounts, making it fully accessible globally.
+    """
+    url = "https://files.grouplens.org/datasets/movielens/ml-latest-small.zip"
+    logger.info("movielens_download_started", url=url)
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=45.0)
+            if resp.status_code != 200:
+                logger.error("movielens_download_failed", status=resp.status_code)
+                return
+    except Exception as e:
+        logger.error("movielens_http_failed", error=str(e))
+        return
+
+    zip_bytes = io.BytesIO(resp.content)
+    try:
+        with zipfile.ZipFile(zip_bytes) as z:
+            movies_file = None
+            for name in z.namelist():
+                if name.endswith("movies.csv"):
+                    movies_file = name
+                    break
+                    
+            if not movies_file:
+                logger.error("movies_csv_not_found_in_zip")
+                return
+                
+            logger.info("parsing_movies_csv", file=movies_file)
+            with z.open(movies_file) as f:
+                content = f.read().decode("utf-8")
+                reader = csv.reader(io.StringIO(content))
+                next(reader) # skip headers
+                
+                movies_list = []
+                for row in reader:
+                    if len(row) < 3:
+                        continue
+                    movie_id, title_raw, genres_raw = row[0], row[1], row[2]
+                    
+                    # Parse release year from title (e.g. "Toy Story (1995)" -> 1995)
+                    title = title_raw.strip()
+                    year = 2024
+                    match = re.search(r"\((\d{4})\)$", title)
+                    if match:
+                        year = int(match.group(1))
+                        title = re.sub(r"\s*\(\d{4}\)$", "", title)
+                        
+                    # Split and map genres
+                    genres = [g.strip() for g in genres_raw.split("|") if g.strip()]
+                    if not genres or genres == ["(no genres listed)"]:
+                        genres = ["Movie"]
+                        
+                    release_date = datetime(year, 1, 1)
+                    
+                    # Generate deterministic/random metrics
+                    vote_average = round(random.uniform(5.5, 9.2), 1)
+                    popularity = round(random.uniform(10.0, 950.0), 1)
+                    vote_count = random.randint(100, 25000)
+                    
+                    overview = f"A classic movie titled '{title}' released in {year} featuring genres like {', '.join(genres)}. Explore reviews, emotional graphs, and ratings."
+                    
+                    poster = random.choice(POSTER_PLACEHOLDERS)
+                    
+                    movie_dict = {
+                        "id": movie_id,
+                        "title": title,
+                        "overview": overview,
+                        "release_date": release_date,
+                        "poster_path": poster,
+                        "backdrop_path": poster,
+                        "genres": genres,
+                        "popularity": popularity,
+                        "vote_average": vote_average,
+                        "vote_count": vote_count,
+                        "dominant_emotion": random.choice(MOCK_DOMINANT_EMOTIONS),
+                        "emotional_arc": random.choice(MOCK_EMOTIONAL_ARCS)
+                    }
+                    movies_list.append(movie_dict)
+                    
+                logger.info("csv_parsing_complete", count=len(movies_list))
+                
+                # 2. Write to PostgreSQL in batches of 1000
+                async with AsyncSessionLocal() as db:
+                    batch_size = 1000
+                    total_inserted = 0
+                    for i in range(0, len(movies_list), batch_size):
+                        batch = movies_list[i:i+batch_size]
+                        stmt = insert(Movie).values(batch)
+                        stmt = stmt.on_conflict_do_nothing(index_elements=['id'])
+                        await db.execute(stmt)
+                        await db.commit()
+                        total_inserted += len(batch)
+                        logger.info("batch_inserted", progress=f"{total_inserted}/{len(movies_list)}")
+                        
+                logger.info("bulk_import_completed", total_inserted=total_inserted)
+                
+    except zipfile.BadZipFile:
+        logger.error("invalid_zip_archive")
+    except Exception as e:
+        logger.error("bulk_import_failed", error=str(e))
+
+if __name__ == "__main__":
+    asyncio.run(import_10k_movies())

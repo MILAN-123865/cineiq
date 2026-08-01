@@ -1,27 +1,36 @@
 from contextlib import asynccontextmanager
-import traceback
 import time
 import uuid
+
+import structlog
+import traceback
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import structlog
+import datetime
 import structlog.contextvars
 
+from app.api.v1 import api_router
 from app.core.config import settings
-
-logger = structlog.get_logger()
-
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
+from app.core.rate_limit import limiter
 from app.db.models import Base
 from app.db.session import engine, AsyncSessionLocal
 from app.services.sync import seed_movies_if_empty
 
+HEALTH_ERROR_PREFIX = "error:"
+
+logger = structlog.get_logger()
+
+
 def get_request_id(request: Request) -> str:
     """Return the request's correlation ID, generating one only as a fallback."""
     return getattr(request.state, "request_id", str(uuid.uuid4()))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,6 +52,30 @@ async def lifespan(app: FastAPI):
                 "auth_bypass_active",
                 message="Clerk secret key is missing or default. Authentication bypass is active in development mode."
             )
+
+    # --- Configure Google Gemini ONCE at startup (not per request) ---
+    if settings.gemini_api_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.gemini_api_key)
+            logger.info("gemini_configured", model=settings.gemini_model)
+        except Exception as e:
+            logger.error("gemini_configuration_failed", error=str(e))
+    else:
+        logger.warning(
+            "gemini_not_configured",
+            message="GEMINI_API_KEY is not set; keyword extraction will be skipped.",
+        )
+
+    # Load the TMDB movie genre map once so recommendation responses can
+    # resolve genre IDs without making an extra request for every movie.
+    try:
+        from app.api.v1.recommend import initialize_tmdb_genres
+
+        await initialize_tmdb_genres()
+    except Exception as e:
+        logger.error("tmdb_genre_initialization_failed", error=str(e))
+
     yield
     # Shutdown
     logger.info("cineiq_stopped")
@@ -54,6 +87,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -150,31 +186,92 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
-from app.api.v1 import api_router
+@app.exception_handler(RateLimitExceeded)
+async def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    request_id = get_request_id(request)
+    response = JSONResponse(
+        status_code=429,
+        content={
+            "detail": "Too many requests. Please try again later.",
+            "error_code": "RATE_LIMIT_EXCEEDED",
+            "request_id": request_id,
+        },
+    )
+    if hasattr(request.app.state, "limiter"):
+        response = request.app.state.limiter._route_manager.headers_handler(response)
+    return response
+
 app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/health")
+@limiter.exempt
 async def health_check():
-    checks = {}
-    
+    # Single UTC timestamp used for every service in this request.
+    last_checked = (
+        datetime.datetime.now(datetime.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
     # Check Redis
     try:
         from app.db.session import get_redis
         redis = get_redis()
         if redis:
             redis.ping()
-            checks["redis"] = "ok"
+            redis_status = "ok"
         else:
-            checks["redis"] = "not_configured"
+            redis_status = "not_configured"
     except Exception as e:
-        checks["redis"] = f"error: {str(e)[:100]}"
+        redis_status = f"{HEALTH_ERROR_PREFIX}{str(e)[:100]}"
         
+    # Check Postgres
+    try:
+        from app.db.session import engine
+        from sqlalchemy import text
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        postgres_status = "ok"
+    except Exception as e:
+        postgres_status = f"{HEALTH_ERROR_PREFIX}{str(e)[:100]}"
     # Check Gemini API
-    checks["gemini_api"] = "configured" if settings.gemini_api_key else "not_configured"
-    
-    all_ok = all(v in ("ok", "configured", "not_configured") for v in checks.values())
-    
-    return {
-        "status": "healthy" if all_ok else "degraded",
-        "checks": checks
+    gemini_status = "configured" if settings.gemini_api_key else "not_configured"
+
+    checks = {
+        "redis": {"status": redis_status, "last_checked": last_checked},
+        "postgres": {"status": postgres_status, "last_checked": last_checked},
+        "gemini_api": {"status": gemini_status, "last_checked": last_checked},
     }
+
+    required_services = {"redis", "postgres", "gemini_api"}
+
+    any_required_not_configured = any(
+        service in required_services and v["status"] == "not_configured"
+        for service, v in checks.items()
+    )
+
+    any_required_error = any(
+        service in required_services
+        and v["status"].startswith(HEALTH_ERROR_PREFIX)
+        for service, v in checks.items()
+    )
+
+    if any_required_not_configured:
+        overall_status = "not_configured"
+    elif any_required_error:
+        overall_status = "degraded"
+    else:
+        any_optional_error = any(
+            service not in required_services
+            and v["status"].startswith(HEALTH_ERROR_PREFIX)
+            for service, v in checks.items()
+        )
+        overall_status = "degraded" if any_optional_error else "healthy"
+
+    status_code = 503 if overall_status == "not_configured" else 200
+
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": overall_status, "checks": checks},
+    )

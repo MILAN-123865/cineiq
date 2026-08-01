@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001/api/v1';
 
 export interface MovieItem {
   id: string;
@@ -14,8 +14,40 @@ export interface RecommendationResponse {
   movies: MovieItem[];
 }
 
+export interface GenrePreference {
+  genre: string;
+  score: number;
+}
+
+export interface ProfileStats {
+  movies_watched: number;
+  reviews: number;
+  genre_preferences: GenrePreference[];
+}
+
+export interface ReviewItem {
+  id: string;
+  user_id: string;
+  movie_id: string;
+  rating: number;
+  text: string;
+  created_at: string;
+  updated_at: string;
+  is_owner: boolean;
+}
+
+export interface ReviewListResponse {
+  items: ReviewItem[];
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+  average_rating: number;
+  rating_count: number;
+}
+
 export async function apiRequest(endpoint: string, options: RequestInit = {}) {
-  const url = `${BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
   
   const headers = new Headers(options.headers);
   if (!headers.has('Content-Type')) {
@@ -55,4 +87,66 @@ export async function fetchTrendingMovies(limit: number = 20): Promise<Recommend
 
 export async function fetchPersonalizedMovies(limit: number = 20): Promise<RecommendationResponse> {
   return apiRequest(`/recommend/personalized?limit=${limit}`);
+}
+
+export async function fetchProfileStats(token: string): Promise<ProfileStats> {
+  const response = await fetch(`${API_BASE_URL}/profile/stats`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+async function reviewRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, options);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || `API Error: ${response.status}`);
+  }
+  return response.status === 204 ? (undefined as T) : response.json();
+}
+
+export function fetchMovieReviews(movieId: string, page = 1, limit = 10) {
+  return reviewRequest<ReviewListResponse>(
+    `/movies/${encodeURIComponent(movieId)}/reviews?page=${page}&limit=${limit}`,
+  );
+}
+
+export function createMovieReview(
+  movieId: string,
+  token: string,
+  payload: { rating: number; text: string },
+) {
+  return reviewRequest<ReviewItem>(`/movies/${encodeURIComponent(movieId)}/reviews`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateMovieReview(
+  reviewId: string,
+  token: string,
+  payload: { rating?: number; text?: string },
+) {
+  return reviewRequest<ReviewItem>(`/reviews/${reviewId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteMovieReview(reviewId: string, token: string) {
+  return reviewRequest<void>(`/reviews/${reviewId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
 }
