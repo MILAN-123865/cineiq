@@ -50,9 +50,13 @@ class Settings(BaseSettings):
 
     @property
     def resolved_database_url(self) -> str:
-        """Return the database URL, falling back to a local SQLite file."""
+        """Return the database URL, falling back to a local SQLite file if asyncpg is not available."""
         if self.database_url and "postgresql" in self.database_url:
-            return self.database_url
+            try:
+                import asyncpg  # noqa: F401
+                return self.database_url
+            except ImportError:
+                pass
         # Default: SQLite stored in the backend directory
         db_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         return f"sqlite+aiosqlite:///{os.path.join(db_dir, 'cineiq.db')}"
