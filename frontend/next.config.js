@@ -6,19 +6,34 @@ if (process.env.NODE_ENV !== 'production') {
 
 const defaultApiUrl =
   process.env.NODE_ENV === 'production'
-    ? '/api/v1'
-    : 'http://localhost:8001';
+    ? 'https://cineiq-backend.onrender.com/api/v1'
+    : 'http://localhost:8001/api/v1';
 
 const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: __dirname,
   images: {
-    unoptimized: process.env.NODE_ENV !== 'production',
+    unoptimized: false,
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'image.tmdb.org',
-        pathname: '/t/p/**',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'img.clerk.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.clerk.dev',
+        pathname: '/**',
       },
     ],
   },
