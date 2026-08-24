@@ -5,6 +5,7 @@
 ![CineIQ Banner](https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=1200&auto=format&fit=crop&q=80)
 
 ### **Next-Generation AI-Powered Movie Recommendation & Social Discovery Platform**
+*Where artificial intelligence meets the magic of cinema, bringing movie lovers together in real-time synchronized Watch Parties.*
 
 [![ECSoC26](https://img.shields.io/badge/Event-ECSoC26-6f42c1?style=for-the-badge&logo=github)](https://github.com/apps/ecsoc-sentinel)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
@@ -12,22 +13,91 @@
 [![Next.js 15](https://img.shields.io/badge/Next.js-15.5-black.svg?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg?style=for-the-badge)](CONTRIBUTING.md)
 
 </div>
 
 ---
 
-## 🌟 What's New in CineIQ v2.0?
+## 🌟 The CineIQ Vision
 
-CineIQ v2.0 is a complete reimagining of the platform designed to transition from a conceptual prototype into a **production-ready, high-performance streaming & discovery ecosystem** for real users.
+Ever spent 45 minutes scrolling through streaming platforms just to pick a movie, or struggled to watch a film with long-distance friends while counting down *"3, 2, 1, hit play"*?
 
-- 🚀 **10,000+ Real Movie Catalog**: Pre-populated using the open MovieLens dataset with high-resolution posters, genre tags, emotional arcs, and popularity rankings — zero external API keys required to start developing!
-- ⚡ **Dual Database Engine**: Zero-config local development powered by **async SQLite (`aiosqlite`)** and production-grade **PostgreSQL (`asyncpg`)** support.
-- 🧠 **AI Semantic Search & Mood Mapping**: Natural language query extraction with Google Gemini and vector similarity search.
-- 🍿 **Real-Time Watch Party Sync**: WebSocket-driven synchronized viewing rooms with instant messaging and participant state management.
-- 📊 **Dynamic Taste Profile Radar**: Interactive Recharts radar visualization evaluating user preferences across 18 genres based on ratings and watchlist activity.
-- 🎨 **Cinematic Glassmorphism UI**: Next.js 15 App Router, React 19, dark/light theme switching with zero flash of unstyled content, and accessible responsive layouts.
-- 🔒 **Clerk Authentication & Role Security**: Secure OAuth, protected profile routes, and JWT authorization headers across API endpoints.
+**CineIQ v2.0** solves this with an all-in-one cinematic ecosystem:
+1. 🧠 **AI Semantic Search & Mood Discovery**: Search naturally (e.g. *"mind-bending space thriller with deep emotional twists"*) powered by Google Gemini and vector embeddings.
+2. 🍿 **Synchronized Watch Parties**: Real-time WebSocket playback synchronization with live chat, emojis, and voice chat.
+3. 📊 **Dynamic Taste Profile Radar**: Interactive genre preferences computed from genuine user ratings and watch history.
+4. 🚀 **10,000+ Real Movie Catalog**: Pre-populated using the open MovieLens dataset with high-res imagery, emotional arcs, and popularity scores — **zero external API keys required to start developing!**
+5. ⚡ **Dual Database Engine**: Zero-config local development powered by **async SQLite (`aiosqlite`)** and production-ready **PostgreSQL (`asyncpg`)** support.
+
+---
+
+## 🗺️ Project Structure
+
+CineIQ is organized as a clean, decoupled monorepo:
+
+```
+cineiq/
+├── backend/                        # FastAPI Async Python Backend
+│   ├── app/
+│   │   ├── api/v1/                 # Modular REST & WebSocket Route Handlers
+│   │   │   ├── movie.py            # Movie details, backdrops, emotional arcs
+│   │   │   ├── recommend.py        # Trending & personalized recommendation feeds
+│   │   │   ├── reviews.py          # User ratings, reviews, and histograms
+│   │   │   ├── room.py             # WebSocket watch party rooms & host sync
+│   │   │   ├── search.py           # AI semantic search & keyword query routing
+│   │   │   └── profile.py          # User taste radar analytics & watch history
+│   │   ├── core/                   # Security, Rate Limiting, & Pydantic Config
+│   │   ├── db/                     # SQLAlchemy Models & Async Session Factory
+│   │   ├── services/               # Background Workers, MovieLens Sync, ML
+│   │   └── main.py                 # FastAPI Application Lifecycle & Middleware
+│   ├── tests/                      # Automated Pytest Suite with SQLite Fixtures
+│   └── requirements.txt            # Python Dependencies
+│
+├── frontend/                       # Next.js 15 App Router Frontend
+│   ├── src/
+│   │   ├── app/                    # Page Routes (SSR + React 19)
+│   │   │   ├── page.tsx            # Cinematic Home Landing & Movie Carousels
+│   │   │   ├── movie/[id]/         # Dynamic Movie Detail, Emotional Graph, Reviews
+│   │   │   ├── search/             # Semantic Search & Interactive Multi-Facet Filters
+│   │   │   ├── room/[id]/          # Real-Time Watch Party Player & Live Chat
+│   │   │   └── profile/            # User Taste Profile Radar & Watchlist
+│   │   ├── components/             # Reusable UI (Skeletons, Nav, Custom Cursor, Theme)
+│   │   ├── context/                # React Context Providers (ThemeContext)
+│   │   ├── hooks/                  # Custom React Hooks (Debounce, Media Queries)
+│   │   └── lib/                    # API Client, Type Definitions, Formatters
+│   └── package.json                # Frontend Dependencies & Scripts
+│
+├── .github/                        # Workflows (CI/CD) & Issue Templates
+│   └── workflows/ci.yml            # Automated Ruff, Pytest, ESLint & Build Checks
+└── docker-compose.yml              # Production Container Orchestration
+```
+
+---
+
+## 🎯 What We Are Looking For (Call for Collaborators!)
+
+We are inviting contributors across all skill levels to help transform CineIQ into the ultimate open-source streaming platform! Here are key areas where your contributions will make a huge impact:
+
+### 1. 🎬 Movie Quality & Metadata Enrichment
+- **Real Posters & Backdrop Hydration**: Connecting TMDB/OMDb APIs or Wikipedia scrapers to upgrade MovieLens titles with authentic studio posters, verified cast photos, and official trailers.
+- **Top 250 Curated Classics**: Seeding hand-verified metadata for all-time greatest cinema masterpieces.
+- **Streaming Availability**: Adding "Where to Watch" badges (Netflix, Prime, Disney+, AppleTV) using provider schemas.
+
+### 2. 🔍 Real-World Search Optimization
+- **Fuzzy Typo-Tolerance**: Implementing Trigram / Levenshtein distance matching so misspelled queries (e.g. *"Insepshun"*) return accurate results with *"Did you mean...?"* suggestions.
+- **Hybrid Search Ranking**: Combining dense semantic embeddings with sparse BM25 keyword relevance using Reciprocal Rank Fusion (RRF).
+- **Search History & Quick Chips**: Client-side query history and one-click trending suggestion tags.
+
+### 3. 🍿 Real-World Watch Party Enhancements
+- **Synchronized Video Player**: Integrating custom HTML5/HLS players with millisecond-accurate playhead buffer sync.
+- **Host Moderation Tools**: Room passcodes, host transfer, mute/kick controls, and participant capacity limits.
+- **Voice & Video Chat Mesh**: Optional WebRTC audio/video mesh for small friend groups watching together.
+- **Full-Screen Cinema Mode**: Translucent floating chat overlay and floating emoji reactions.
+
+### 4. 🎨 Glassmorphic UI/UX Elegance
+- **Micro-Interactions**: Smooth Framer Motion transitions, responsive tablet/ultrawide grid breakpoints, and mobile swipe gestures.
+- **Accessibility (a11y)**: WCAG 2.1 AA compliance, ARIA live regions, and keyboard navigation shortcuts.
 
 ---
 
@@ -39,7 +109,7 @@ This repository is an official participant in **ECSoC 2026**. All contributions 
 > [!IMPORTANT]
 > **Every pull request MUST include the label: `ECSoC26`** before merging to be processed by the automated scoring system.
 
-### 💯 Points Breakdown by Difficulty
+### 💯 Points Breakdown
 
 | Difficulty Level | Label | Points Awarded | Description |
 | :--- | :--- | :---: | :--- |
@@ -48,8 +118,6 @@ This repository is an official participant in **ECSoC 2026**. All contributions 
 | **Difficult** | `ECSoC26-L3` | **15 Points** | Real-time WebRTC sync, vector embeddings, ML recommendation engines, E2E test suites |
 
 ### 🎁 Project Admin (PA) Bonus XP
-
-Project Admins can award additional Bonus XP labels for exemplary pull requests:
 
 | Bonus Label | Bonus XP | Applicable Contributions |
 | :--- | :---: | :--- |
@@ -60,94 +128,46 @@ Project Admins can award additional Bonus XP labels for exemplary pull requests:
 
 ---
 
-## 🏗️ System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Next.js 15 Frontend                      │
-│   (App Router, SSR, Framer Motion, Recharts, Clerk Auth)    │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ HTTP / WebSockets (Port 3000 -> 8001)
-                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     FastAPI Backend                         │
-│   (Async Routes, Rate Limiting, Structlog, Lifespan Seed)   │
-└──────────────┬───────────────┬───────────────┬──────────────┘
-               │               │               │
-               ▼               ▼               ▼
-     ┌──────────────────┐┌───────────┐┌─────────────────┐
-     │ SQLite / Postgres││  Upstash  ││ Google Gemini / │
-     │ (SQLAlchemy ORM) ││   Redis   ││ Qdrant VectorDB │
-     │  10k+ Movies DB  ││  (Cache)  ││ (Semantic LLM)  │
-     └──────────────────┘└───────────┘└─────────────────┘
-```
-
----
-
-## 🚀 Quick Start Guide
+## 🚀 Quick Start (Up & Running in 2 Minutes)
 
 ### Prerequisites
 - **Node.js**: v20.x or v22.x
 - **Python**: 3.11, 3.12, or 3.13
-- **Git**: Installed and configured
+- **Git**: Installed on your machine
 
----
-
-### Option 1: Local Development (Recommended — Zero External Config)
-
-#### 1. Clone Repository
+### 1. Clone & Setup Backend
 ```bash
 git clone https://github.com/RamK2006/cineiq.git
-cd cineiq
-```
+cd cineiq/backend
 
-#### 2. Backend Setup
-```bash
-cd backend
-
-# Create and activate Python virtual environment
+# Create virtual environment
 python -m venv venv
 
-# Windows (PowerShell):
+# Activate (Windows PowerShell):
 .\venv\Scripts\Activate.ps1
-# Linux / macOS:
+# Activate (Linux / macOS):
 source venv/bin/activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements.txt ruff pytest
 
-# (Optional) Bulk import 9,700+ movies from MovieLens
-python -m app.services.bulk_import
-
-# Start FastAPI server on port 8001
+# Start FastAPI backend (port 8001)
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
-*API will be live at `http://localhost:8001` (Interactive docs at `http://localhost:8001/docs`).*
+*API will be live at `http://localhost:8001` (Interactive Swagger docs at `http://localhost:8001/docs`).*
 
-#### 3. Frontend Setup
-In a new terminal window:
+### 2. Setup Frontend
+In a separate terminal:
 ```bash
-cd frontend
+cd cineiq/frontend
 
-# Install Node dependencies
+# Install dependencies
 npm install
 
-# Start Next.js development server on port 3000
+# Start Next.js frontend (port 3000)
 npm run dev
 ```
-*Open `http://localhost:3000` in your browser.*
-
----
-
-### Option 2: Docker Compose (Production Stack)
-
-```bash
-# Build and run all services
-docker-compose up --build
-
-# Run in detached mode
-docker-compose up -d
-```
+*Open `http://localhost:3000` to start exploring CineIQ!*
 
 ---
 
@@ -155,52 +175,25 @@ docker-compose up -d
 
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :---: |
-| `GET` | `/health` | Live health probe (Postgres, Redis, Gemini) | ❌ |
+| `GET` | `/health` | Health probe (Postgres/SQLite, Redis, Gemini) | ❌ |
 | `GET` | `/api/v1/recommend/trending` | Fetch trending movies by popularity rank | ❌ |
 | `GET` | `/api/v1/search/semantic?q={query}` | AI semantic & keyword movie search | ❌ |
 | `GET` | `/api/v1/movie/{id}` | Detailed movie metadata & emotional arc | ❌ |
-| `GET` | `/api/v1/movies/{id}/reviews` | Paginated reviews & aggregate rating breakdown | ❌ |
+| `GET` | `/api/v1/movies/{id}/reviews` | Paginated reviews & rating distribution | ❌ |
 | `POST` | `/api/v1/movies/{id}/reviews` | Submit user movie review & 1-5 star rating | ✅ |
 | `GET` | `/api/v1/profile/stats` | Compute user taste profile & genre scores | ✅ |
 | `WS` | `/api/v1/room/{id}/ws` | Real-time Watch Party synchronization socket | ❌ |
 
 ---
 
-## 🗺️ CineIQ v2.0 Roadmap
+## 🤝 How to Contribute
 
-- [x] **Zero-Config Local Setup**: Native async SQLite database with MovieLens seed.
-- [x] **Full-Stack Integration**: Homepage, Search, Detail, and Reviews wired to backend APIs.
-- [x] **Dark / Light Theme**: Zero-flicker CSS variable color tokens.
-- [ ] **Multi-Facet Search**: Filter by genres, release year range, and minimum rating. 🚧
-- [ ] **Watchlist & Favorites**: Persistent user lists synced with Clerk accounts. 🚧
-- [ ] **WebRTC Video Sync**: Host playback synchronization for Watch Parties. 🚧
-- [ ] **Vector Search Pipeline**: Sentence-transformers embeddings indexed in Qdrant. 🚧
-- [ ] **Automated CI/CD**: GitHub Actions workflows for pytest, ruff, ESLint, and Vitest. 🚧
-- [ ] **Mobile PWA**: Progressive Web App offline caching and installation prompts. 🚧
+Ready to write your first contribution? Check out our step-by-step [**Contributing Guide (CONTRIBUTING.md)**](CONTRIBUTING.md) for detailed instructions on forking, local verification commands, commit formatting, and PR submission.
 
----
-
-## 🤝 Contributing Guidelines
-
-We love contributions! Follow these steps to submit your work for **ECSoC26**:
-
-1. **Find an Open Issue**: Browse our [Issue Tracker](https://github.com/RamK2006/cineiq/issues) and find an issue tagged with `ECSoC26` and your desired difficulty level (`ECSoC26-L1`, `ECSoC26-L2`, `ECSoC26-L3`).
-2. **Fork & Branch**:
-   ```bash
-   git checkout -b feat/your-feature-name
-   # or
-   git checkout -b fix/issue-description
-   ```
-3. **Follow Code Quality Standards**:
-   - Backend: Format with `ruff` and type-check with `mypy`.
-   - Frontend: Verify with `npm run lint` and ensure clean builds with `npm run build`.
-4. **Commit with Conventional Commits**:
-   ```bash
-   git commit -m "feat(search): add genre and year filters to semantic search"
-   ```
-5. **Submit Pull Request**:
-   - Link the issue in your PR body: `Fixes #<issue_number>`.
-   - Ensure the `ECSoC26` label is applied.
+Browse open issues by difficulty:
+- [🟢 Easy Issues (ECSoC26-L1)](https://github.com/RamK2006/cineiq/issues?q=is%3Aissue+is%3Aopen+label%3AECSoC26-L1)
+- [🟡 Medium Issues (ECSoC26-L2)](https://github.com/RamK2006/cineiq/issues?q=is%3Aissue+is%3Aopen+label%3AECSoC26-L2)
+- [🔴 Advanced Issues (ECSoC26-L3)](https://github.com/RamK2006/cineiq/issues?q=is%3Aissue+is%3Aopen+label%3AECSoC26-L3)
 
 ---
 
@@ -209,5 +202,5 @@ We love contributions! Follow these steps to submit your work for **ECSoC26**:
 This project is licensed under the [MIT License](LICENSE).
 
 <div align="center">
-  <sub>Built with ❤️ for ECSoC 2026 by RamK2006 & the CineIQ Open Source Community.</sub>
+  <sub>Built with ❤️ by RamK2006 & the CineIQ Open Source Community.</sub>
 </div>
