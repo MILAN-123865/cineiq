@@ -4,11 +4,6 @@ if (process.env.NODE_ENV !== 'production') {
 
 /** @type {import('next').NextConfig} */
 
-const defaultApiUrl =
-  process.env.NODE_ENV === 'production'
-    ? 'https://cineiq-backend.onrender.com/api/v1'
-    : 'http://localhost:8001/api/v1';
-
 const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: __dirname,
@@ -39,7 +34,7 @@ const nextConfig = {
   },
   env: {
     NEXT_PUBLIC_API_URL:
-      process.env.NEXT_PUBLIC_API_URL || defaultApiUrl,
+      process.env.NEXT_PUBLIC_API_URL || '/api/v1',
   },
 };
 
