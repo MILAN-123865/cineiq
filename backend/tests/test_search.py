@@ -18,7 +18,8 @@ def test_search_endpoint_returns_results_with_mock_tmdb():
         ]
     }
 
-    with patch.object(settings, "tmdb_api_key", "test-tmdb-key"), \
+    with patch.object(settings, "gemini_api_key", "test-gemini-key"), \
+         patch.object(settings, "tmdb_api_key", "test-tmdb-key"), \
          patch("httpx.AsyncClient.get", return_value=mock_response):
         client = TestClient(app)
         response = client.get("/api/v1/search/semantic?q=Interstellar")
@@ -29,6 +30,14 @@ def test_search_endpoint_returns_results_with_mock_tmdb():
         assert isinstance(data["results"], list)
         assert len(data["results"]) == 1
         assert data["results"][0]["title"] == "Interstellar"
+
+def test_search_unconfigured_returns_503():
+    """Verify that semantic search without gemini or qdrant returns 503."""
+    with patch.object(settings, "gemini_api_key", ""), \
+         patch.object(settings, "qdrant_url", None):
+        client = TestClient(app)
+        response = client.get("/api/v1/search/semantic?q=Interstellar")
+        assert response.status_code == 503
 
 def test_search_missing_query_fails():
     """Verify that semantic search without 'q' returns validation error 422."""
