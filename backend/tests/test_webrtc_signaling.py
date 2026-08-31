@@ -93,4 +93,3 @@ def test_webrtc_signaling_capacity_limit():
         assert exc_info.value.code == 4001
 
 
-

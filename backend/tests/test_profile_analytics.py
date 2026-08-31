@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+
 from app.main import app
 from app.api.v1.profile import compute_taste_radar, MOCK_WATCH_HISTORY
 from app.core.security import get_current_user
