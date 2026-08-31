@@ -7,6 +7,7 @@ from app.db.session import AsyncSessionLocal, engine
 from app.db.models import Movie, Base
 
 
+
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)

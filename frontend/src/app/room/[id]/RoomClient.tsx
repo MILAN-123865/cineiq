@@ -54,7 +54,6 @@ export default function RoomClient() {
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localUserIdRef = useRef<string>(user?.id || `user_${Math.floor(Math.random() * 10000)}`);
 
-
   const triggerFloatingEmoji = useCallback((emoji: string) => {
     const id = Date.now() + Math.random();
     setReactions(prev => [...prev, { id, emoji }]);
