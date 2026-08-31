@@ -3,8 +3,9 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.api.v1.reviews import get_current_user
-from app.db.session import AsyncSessionLocal
-from app.db.models import Movie, Review, ReviewVote, User, Base, engine
+from app.db.session import AsyncSessionLocal, engine
+from app.db.models import Movie, Review, ReviewVote, User, Base
+
 
 client = TestClient(app)
 
@@ -12,6 +13,11 @@ client = TestClient(app)
 async def setup_test_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSessionLocal() as session:
+        movie = await session.get(Movie, "movie_vote_test")
+        if not movie:
+            session.add(Movie(id="movie_vote_test", title="Test Movie"))
+            await session.commit()
     yield
 
 def test_review_vote_flow():
@@ -21,6 +27,7 @@ def test_review_vote_flow():
     review_id = "review_vote_test"
 
     app.dependency_overrides[get_current_user] = lambda: user_id
+
 
     # 1. Create a review to vote on
     create_resp = client.post(
