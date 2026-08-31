@@ -23,7 +23,11 @@ from app.db.models import Base
 from app.db.session import engine, AsyncSessionLocal
 from app.core.logging import log_exception
 from app.services.sync import seed_movies_if_empty
-from prometheus_fastapi_instrumentator import Instrumentator
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+except ImportError:
+    Instrumentator = None
+
 from app.core.metrics import db_query_duration_seconds
 from sqlalchemy import event
 
@@ -239,6 +243,10 @@ except Exception:
 
 app.include_router(api_router, prefix="/api/v1")
 
+from app.api.v1.room import room_websocket_signaling_endpoint
+app.websocket("/ws/room/{room_id}/{user_id}")(room_websocket_signaling_endpoint)
+
+
 # Instrument database queries via SQLAlchemy events on the sync engine
 @event.listens_for(engine.sync_engine, "before_cursor_execute")
 def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
@@ -251,7 +259,9 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
         db_query_duration_seconds.observe(duration)
 
 # Instrument the FastAPI app with Prometheus metrics
-Instrumentator().instrument(app).expose(app)
+if Instrumentator:
+    Instrumentator().instrument(app).expose(app)
+
 
 @app.get("/health")
 async def health_check():
