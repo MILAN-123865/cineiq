@@ -1,6 +1,6 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from fastapi.security import HTTPAuthorizationCredentials
-from typing import Dict, Set, Literal, Optional, Any, List
+from typing import Dict, Literal, Optional, Any, List
 from pydantic import BaseModel, ValidationError
 import json
 import structlog
