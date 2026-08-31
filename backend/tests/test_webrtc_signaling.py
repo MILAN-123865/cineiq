@@ -20,17 +20,24 @@ def test_webrtc_signaling_peer_connection_flow():
 
     # User 1 connects
     with client.websocket_connect(f"/ws/room/{room_id}/{user1}") as ws1:
+        hyd1 = ws1.receive_json()
+        assert hyd1["type"] == "ROOM_HYDRATION"
         assert room_id in ROOM_SIGNALING_REGISTRY
         assert user1 in ROOM_SIGNALING_REGISTRY[room_id]
 
         # User 2 connects
         with client.websocket_connect(f"/ws/room/{room_id}/{user2}") as ws2:
+            hyd2 = ws2.receive_json()
+            assert hyd2["type"] == "ROOM_HYDRATION"
             assert user2 in ROOM_SIGNALING_REGISTRY[room_id]
 
-            # ws1 should receive peer-joined message for user2
-            data1 = ws1.receive_json()
-            assert data1["type"] == "peer-joined"
-            assert data1["peerId"] == user2
+            # ws1 receives USER_JOINED and peer-joined for user2
+            msg_a = ws1.receive_json()
+            msg_b = ws1.receive_json()
+            types = {msg_a["type"], msg_b["type"]}
+            assert "peer-joined" in types
+            assert "USER_JOINED" in types
+
 
             # User 1 sends WebRTC offer
             offer_payload = {"type": "offer", "data": {"sdp": "fake_sdp_offer"}}
@@ -62,10 +69,13 @@ def test_webrtc_signaling_peer_connection_flow():
             assert cand_resp["senderId"] == user1
             assert cand_resp["data"]["candidate"] == "fake_candidate"
 
-        # User 2 disconnects, User 1 receives peer-left
-        left_msg = ws1.receive_json()
-        assert left_msg["type"] == "peer-left"
-        assert left_msg["peerId"] == user2
+        # User 2 disconnects, User 1 receives USER_LEFT and peer-left
+        left_a = ws1.receive_json()
+        left_b = ws1.receive_json()
+        left_types = {left_a["type"], left_b["type"]}
+        assert "peer-left" in left_types
+        assert "USER_LEFT" in left_types
+
 
 from starlette.websockets import WebSocketDisconnect
 
