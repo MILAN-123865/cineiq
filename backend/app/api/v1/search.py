@@ -5,7 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 import json
 import hashlib
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import or_, and_, cast, String, extract
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,8 +107,10 @@ async def semantic_search(
     """
     Perform semantic search using Qdrant vector search, Gemini keyword extraction, PostgreSQL DB search, or TMDB search fallback.
     """
+    has_filters = bool(genres or min_rating is not None or year_from is not None or year_to is not None)
     # Try Hybrid Search first if query is provided
     if q:
+
         try:
             from app.services.hybrid_search import HybridSearchEngine
             engine = HybridSearchEngine(db)

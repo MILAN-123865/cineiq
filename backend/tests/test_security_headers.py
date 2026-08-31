@@ -1,8 +1,7 @@
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.core.security import ALLOWED_ORIGINS, CSP_DIRECTIVES
+from app.core.security import CSP_DIRECTIVES
 
 client = TestClient(app)
 

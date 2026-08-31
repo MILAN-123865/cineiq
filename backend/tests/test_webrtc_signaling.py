@@ -1,6 +1,6 @@
 import pytest
+from starlette.websockets import WebSocketDisconnect
 from fastapi.testclient import TestClient
-import json
 
 from app.main import app
 from app.api.v1.room import ROOM_SIGNALING_REGISTRY
@@ -37,7 +37,6 @@ def test_webrtc_signaling_peer_connection_flow():
             types = {msg_a["type"], msg_b["type"]}
             assert "peer-joined" in types
             assert "USER_JOINED" in types
-
 
             # User 1 sends WebRTC offer
             offer_payload = {"type": "offer", "data": {"sdp": "fake_sdp_offer"}}
@@ -76,17 +75,14 @@ def test_webrtc_signaling_peer_connection_flow():
         assert "peer-left" in left_types
         assert "USER_LEFT" in left_types
 
-
-from starlette.websockets import WebSocketDisconnect
-
 def test_webrtc_signaling_capacity_limit():
     room_id = "test-room-mesh-capacity"
     
     # Connect 4 users successfully
-    with client.websocket_connect(f"/ws/room/{room_id}/user1") as ws1, \
-         client.websocket_connect(f"/ws/room/{room_id}/user2") as ws2, \
-         client.websocket_connect(f"/ws/room/{room_id}/user3") as ws3, \
-         client.websocket_connect(f"/ws/room/{room_id}/user4") as ws4:
+    with client.websocket_connect(f"/ws/room/{room_id}/user1"), \
+         client.websocket_connect(f"/ws/room/{room_id}/user2"), \
+         client.websocket_connect(f"/ws/room/{room_id}/user3"), \
+         client.websocket_connect(f"/ws/room/{room_id}/user4"):
         
         assert len(ROOM_SIGNALING_REGISTRY[room_id]) == 4
 
@@ -95,5 +91,6 @@ def test_webrtc_signaling_capacity_limit():
             with client.websocket_connect(f"/ws/room/{room_id}/user5") as ws5:
                 ws5.receive_text()
         assert exc_info.value.code == 4001
+
 
 

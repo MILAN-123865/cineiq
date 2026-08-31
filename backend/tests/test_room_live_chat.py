@@ -1,9 +1,7 @@
 import json
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.api.v1.room import ROOM_PRESENCE_REGISTRY, ROOM_CHAT_HISTORY
 
 client = TestClient(app)
 
