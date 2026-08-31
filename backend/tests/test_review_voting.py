@@ -4,7 +4,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.api.v1.reviews import get_current_user
 from app.db.session import AsyncSessionLocal, engine
-from app.db.models import Movie, Review, ReviewVote, User, Base
+from app.db.models import Movie, Base
+
 
 
 client = TestClient(app)

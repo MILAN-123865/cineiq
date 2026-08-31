@@ -24,11 +24,15 @@ export default function RoomClient() {
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [messages, setMessages] = useState<{user: string, text: string}[]>([]);
+  const [messages, setMessages] = useState<{user: string, text: string, timestamp?: string}[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [participants, setParticipants] = useState<string[]>([currentUserId]);
+  const [members, setMembers] = useState<{userId: string, username: string, avatar: string}[]>([]);
+  const [reactions, setReactions] = useState<{id: number, emoji: string}[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+
   // Moderation state
   const [hostId, setHostId] = useState<string | null>(null);
   const [mutedUsers, setMutedUsers] = useState<string[]>([]);
@@ -64,15 +68,33 @@ export default function RoomClient() {
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localUserIdRef = useRef<string>(user?.id || `user_${Math.floor(Math.random() * 10000)}`);
 
+  const triggerFloatingEmoji = useCallback((emoji: string) => {
+    const id = Date.now() + Math.random();
+    setReactions(prev => [...prev, { id, emoji }]);
+    setTimeout(() => {
+      setReactions(prev => prev.filter(r => r.id !== id));
+    }, 2000);
+  }, []);
+
+  const handleSendReaction = (emoji: string) => {
+    if (meshWsRef.current && meshWsRef.current.readyState === WebSocket.OPEN) {
+      meshWsRef.current.send(JSON.stringify({
+        type: 'EMOJI_REACTION',
+        data: { emoji }
+      }));
+    }
+    triggerFloatingEmoji(emoji);
+  };
+
   const initializeMeshWebSocket = useCallback((stream: MediaStream | null) => {
     if (typeof window === 'undefined') return;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     const configuredUrl = process.env.NEXT_PUBLIC_WS_URL;
-    let wsUrl = `${protocol}//${host}/ws/room/${roomId}/${localUserIdRef.current}`;
+    let wsUrl = `${protocol}//${host}/ws/room/${roomId}/${localUserIdRef.current}?username=${encodeURIComponent(userName)}`;
     if (configuredUrl) {
       const wsBase = configuredUrl.replace(/\/$/, '');
-      wsUrl = `${wsBase}/room/ws/room/${roomId}/${localUserIdRef.current}`;
+      wsUrl = `${wsBase}/room/ws/room/${roomId}/${localUserIdRef.current}?username=${encodeURIComponent(userName)}`;
     }
 
     meshWsRef.current = new WebSocket(wsUrl);
@@ -83,6 +105,38 @@ export default function RoomClient() {
         const { type, peerId, senderId, data } = message;
 
         switch (type) {
+          case 'ROOM_HYDRATION':
+            if (data?.members) setMembers(data.members);
+            if (data?.history) {
+              setMessages(data.history.map((m: any) => ({
+                user: m.username || m.userId || 'Guest',
+                text: m.text || '',
+                timestamp: m.timestamp || ''
+              })));
+            }
+            break;
+          case 'USER_JOINED':
+            if (data?.userId) {
+              setMembers(prev => [...prev.filter(m => m.userId !== data.userId), data]);
+            }
+            break;
+          case 'USER_LEFT':
+            if (data?.userId) {
+              setMembers(prev => prev.filter(m => m.userId !== data.userId));
+            }
+            break;
+          case 'CHAT_MESSAGE':
+            if (data) {
+              setMessages(prev => [...prev, {
+                user: data.username || data.userId || 'Guest',
+                text: data.text || '',
+                timestamp: data.timestamp || ''
+              }]);
+            }
+            break;
+          case 'EMOJI_REACTION':
+            if (data?.emoji) triggerFloatingEmoji(data.emoji);
+            break;
           case 'peer-joined':
             createNewPeerConnection(peerId, stream, true);
             break;
@@ -109,7 +163,8 @@ export default function RoomClient() {
         console.error("WebRTC mesh signaling frame parse error:", err);
       }
     };
-  }, [roomId]);
+  }, [roomId, userName, triggerFloatingEmoji]);
+
 
   const createNewPeerConnection = useCallback((targetPeerId: string, stream: MediaStream | null, initiateOffer: boolean) => {
     if (peersRef.current.has(targetPeerId)) {
@@ -415,14 +470,28 @@ export default function RoomClient() {
     if (!chatInput.trim()) return;
     if (mutedUsers.includes(currentUserId)) return;
     
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const payload = { text: chatInput, timestamp };
+
+    if (meshWsRef.current && meshWsRef.current.readyState === WebSocket.OPEN) {
+      meshWsRef.current.send(JSON.stringify({
+        type: 'CHAT_MESSAGE',
+        data: payload
+      }));
+    }
+
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({
         type: 'chat',
         payload: { text: chatInput }
       }));
-      setChatInput('');
     }
+    setChatInput('');
   };
+
+  useEffect(() => {
+    chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const submitPasscode = (e: React.FormEvent) => {
       e.preventDefault();
@@ -458,8 +527,23 @@ export default function RoomClient() {
   }
 
   return (
-    <main className="room-container" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#000' }}>
+    <main className="room-container" style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#000', position: 'relative' }}>
       
+      {/* Floating Animated Reaction Container */}
+      <div style={{ position: 'absolute', bottom: '100px', right: '350px', pointerEvents: 'none', zIndex: 60, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {reactions.map((r) => (
+          <motion.span
+            key={r.id}
+            initial={{ opacity: 1, y: 0, scale: 0.8 }}
+            animate={{ opacity: 0, y: -100, scale: 1.5 }}
+            transition={{ duration: 1.8, ease: "easeOut" }}
+            style={{ fontSize: '36px', textAlign: 'center', display: 'block' }}
+          >
+            {r.emoji}
+          </motion.span>
+        ))}
+      </div>
+
       {/* Passcode Modal Overlay */}
       <AnimatePresence>
         {showPasscodeModal && (
@@ -573,11 +657,36 @@ export default function RoomClient() {
         
         {/* Participants */}
         <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <Users size={16} color="var(--accent-secondary)" />
-            <span style={{ fontWeight: 600, fontSize: '14px' }}>Room Participants ({participants.length})</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Users size={16} color="var(--accent-secondary)" />
+              <span style={{ fontWeight: 600, fontSize: '14px' }}>Room Participants ({members.length || participants.length})</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {members.slice(0, 4).map(m => (
+                <div 
+                  key={m.userId} 
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    background: '#1e293b',
+                    border: '1.5px solid #0f172a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    color: '#e2e8f0',
+                    boxShadow: '0 0 0 1.5px #10b981'
+                  }}
+                  title={m.username}
+                >
+                  {m.username.charAt(0).toUpperCase()}
+                </div>
+              ))}
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '140px', overflowY: 'auto' }}>
             {participants.map(p => (
               <ParticipantItem 
                 key={p} 
@@ -596,10 +705,28 @@ export default function RoomClient() {
         {/* Chat Messages */}
         <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {messages.map((m, i) => (
-            <div key={i} style={{ background: m.user === currentUserId ? 'rgba(229,9,20,0.1)' : 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '12px', alignSelf: m.user === currentUserId ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px' }}>{m.user === currentUserId ? 'You' : m.user}</div>
-              <div style={{ fontSize: '14px', wordBreak: 'break-word' }}>{m.text}</div>
+            <div key={i} style={{ background: m.user === currentUserId || m.user === userName ? 'rgba(229,9,20,0.15)' : 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '12px', alignSelf: m.user === currentUserId || m.user === userName ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px', display: 'flex', gap: '6px', justifyContent: 'space-between' }}>
+                <span>{m.user === currentUserId || m.user === userName ? 'You' : `@${m.user}`}</span>
+                {m.timestamp && <span>{m.timestamp}</span>}
+              </div>
+              <div style={{ fontSize: '14px', wordBreak: 'break-word', color: '#f8fafc' }}>{m.text}</div>
             </div>
+          ))}
+          <div ref={chatScrollRef} />
+        </div>
+
+        {/* Quick Emoji Macro Reaction Triggers */}
+        <div style={{ padding: '8px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(15,23,42,0.4)', display: 'flex', justifyContent: 'space-around' }}>
+          {['🍿', '❤️', '😱', '😂', '🔥'].map(emoji => (
+            <button 
+              key={emoji} 
+              type="button"
+              onClick={() => handleSendReaction(emoji)}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '20px', transition: 'transform 0.1s' }}
+            >
+              {emoji}
+            </button>
           ))}
         </div>
 
@@ -620,6 +747,7 @@ export default function RoomClient() {
         </form>
 
       </div>
+
     </main>
   );
 }
