@@ -26,11 +26,20 @@ export interface GenrePreference {
   score: number;
 }
 
+export interface RadarItem {
+  subject: string;
+  A: number;
+  fullMark: number;
+}
+
 export interface ProfileStats {
   movies_watched: number;
   reviews: number;
   genre_preferences: GenrePreference[];
+  radarData?: RadarItem[];
+  summaryMessage?: string;
 }
+
 
 export interface ReviewItem {
   id: string;
